@@ -117,7 +117,7 @@ private:
     void cleanup() {
 
 
-
+        vkDestroyInstance(instance, nullptr);
 
         SDL_DestroyWindow(window);
         SDL_Quit();
