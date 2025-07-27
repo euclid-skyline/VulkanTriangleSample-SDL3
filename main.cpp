@@ -19,9 +19,10 @@ public:
     }
 
 private:
-    SDL_Window* window;
+    SDL_Window* window =nullptr;
 
-	VkInstance instance;
+	VkInstance instance = VK_NULL_HANDLE;
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
 
     void initWindow() {
         // --- Initialize SDL3 ---
@@ -35,8 +36,7 @@ private:
         std::cout << "SDL3 initialized successfully!\n";
 
         // --- Create SDL3 window ---
-        window = SDL_CreateWindow("Vulkan Triangle with SDL3", WIDTH, HEIGHT,
-            SDL_WINDOW_VULKAN); // Remove the flag SDL_WINDOW_RESIZABLE
+        window = SDL_CreateWindow("Vulkan Triangle with SDL3", WIDTH, HEIGHT, SDL_WINDOW_VULKAN); // Remove the flag SDL_WINDOW_RESIZABLE
 
         if (window == nullptr) {
             std::cerr << "Window creation failed: " << SDL_GetError() << '\n';
@@ -57,7 +57,8 @@ private:
     }
 
     void initVulkan() {
-        createInstance();  
+        createInstance(); 
+        createSurface();
     }
 
     void mainLoop() {
@@ -76,7 +77,7 @@ private:
 
     void cleanup() {
 
-
+		vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(instance, nullptr);
 
         SDL_DestroyWindow(window);
@@ -85,21 +86,8 @@ private:
 
     void createInstance() {
         // --- Get required Vulkan extensions from SDL3 ---
-        Uint32 extensionCount = 0;
-        const char* const* SDL3_Extensions = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
-        if (!SDL3_Extensions || extensionCount == 0) {
-            std::cerr << "Failed to get Vulkan extension count: " << SDL_GetError() << '\n';
-            SDL_DestroyWindow(window);
-            SDL_Quit();
-            throw std::runtime_error("Failed to get Vulkan extensions!");
-        }
-
-#ifndef NDEBUG
-        std::cout << "Number of Vulkan extensions: " << extensionCount << '\n';
-        for (Uint32 i = 0; i < extensionCount; ++i) {
-            std::cout << "Extension " << i << ": " << SDL3_Extensions[i] << '\n';
-        }
-#endif // !NDEBUG
+        
+		auto extensions = getRequiredExtensions();
 
         // --- Create Vulkan Instance ---
         VkApplicationInfo appInfo = {
@@ -108,24 +96,54 @@ private:
             .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
             .pEngineName = "No Engine",
             .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-            .apiVersion = VK_API_VERSION_1_4
+			.apiVersion = VK_API_VERSION_1_4, // Use the latest Vulkan API version supported by your SDK
         };
+        // --- Create Vulkan Instance Create Info ---
         VkInstanceCreateInfo createInfo = {
             .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+			.pNext = nullptr,
             .pApplicationInfo = &appInfo,
             .enabledLayerCount = 0,
             .ppEnabledLayerNames = nullptr,
-            .enabledExtensionCount = extensionCount,
-            .ppEnabledExtensionNames = SDL3_Extensions
+            .enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
+            .ppEnabledExtensionNames = extensions.data(), 
         };
+
         if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-            std::cerr << "Failed to create Vulkan instance\n";
-            SDL_DestroyWindow(window);
-            SDL_Quit();
             throw std::runtime_error("Failed to create Vulkan instance!");
         }
         std::cout << "Vulkan instance created successfully!\n";
-	}
+    }
+
+    void createSurface() {
+        // --- Create Vulkan Surface ---
+        if (!SDL_Vulkan_CreateSurface(window, instance, nullptr, &surface)) {
+            std::cerr << "Surface creation failed: " << SDL_GetError() << '\n';
+            vkDestroyInstance(instance, nullptr);
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            throw std::runtime_error("Failed to create Vulkan surface!");
+        }
+        std::cout << "Vulkan surface created by SDL3 successfully!\n";
+    }
+
+    std::vector<const char*> getRequiredExtensions() {
+        Uint32 extensionCount = 0;
+        const char* const* extensions = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
+        if (!extensions || extensionCount == 0) {
+            throw std::runtime_error("Failed to get Vulkan extensions from SDL3!");
+        }
+        std::vector<const char*> requiredExtensions(extensions, extensions + extensionCount);
+	
+#ifndef NDEBUG
+		std::cout << "Required Vulkan extensions:\n";
+        for (const char* ext : requiredExtensions) {
+            std::cout << "  " << ext << '\n';
+		}
+#endif !NDEBUG
+
+        return requiredExtensions;
+    }
 };
 
 int main() {
@@ -141,131 +159,3 @@ int main() {
 
     return EXIT_SUCCESS;
 }
-
-
-
-
-
-/*
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_vulkan.h>
-#include <vulkan/vulkan.h>
-#include <iostream>
-#include <vector>
-
-
-const int width = 800;
-const int height = 600;
-
-int main() {
-    // --- Initialize SDL3 ---
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        std::cerr << "SDL_Init failed: " << SDL_GetError() << '\n';
-        std::cerr << "This might indicate SDL3.dll is missing or corrupted.\n";
-        std::cerr << "Please ensure SDL3.dll is in the same directory as the executable.\n";
-        return 1;
-    }
-
-    std::cout << "SDL3 initialized successfully!\n";
-
-    // --- Create SDL3 Window ---
-    SDL_Window* window = SDL_CreateWindow("Vulkan Triangle with SDL3", width, height,
-        SDL_WINDOW_VULKAN); // Remove the flag SDL_WINDOW_RESIZABLE
-
-    if (window == nullptr) {
-        std::cerr << "Window creation failed: " << SDL_GetError() << '\n';
-        SDL_Quit();
-        return 1;
-    }
-
-    std::cout << "SDL3 window created successfully!\n";
-
-    if (!SDL_Vulkan_LoadLibrary(nullptr)) {
-        std::cerr << "Failed to load Vulkan library: " << SDL_GetError() << '\n';
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-
-    std::cout << "Vulkan library loaded successfully!\n";
-
-    // --- Get required Vulkan extensions from SDL3 ---
-    Uint32 extensionCount = 0;
-    const char* const* SDL3_Extensions = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
-    if (!SDL3_Extensions || extensionCount == 0) {
-        std::cerr << "Failed to get Vulkan extension count: " << SDL_GetError() << '\n';
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-
-#ifndef NDEBUG
-    std::cout << "Number of Vulkan extensions: " << extensionCount << '\n';
-    for (Uint32 i = 0; i < extensionCount; ++i) {
-        std::cout << "Extension " << i << ": " << SDL3_Extensions[i] << '\n';
-    }
-#endif // !NDEBUG
-
-    // --- Create Vulkan Instance ---
-    VkApplicationInfo appInfo = {
-        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pApplicationName = "SDL3 Vulkan Demo",
-        .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-        .pEngineName = "No Engine",
-        .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-        .apiVersion = VK_API_VERSION_1_3
-    };
-
-    VkInstanceCreateInfo createInfo = {
-        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pApplicationInfo = &appInfo,
-        .enabledLayerCount = 0,
-        .ppEnabledLayerNames = nullptr,
-        .enabledExtensionCount = extensionCount,
-        .ppEnabledExtensionNames = SDL3_Extensions
-    };
-
-    VkInstance instance = VK_NULL_HANDLE;
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-        std::cerr << "Failed to create Vulkan instance\n";
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-
-    std::cout << "Vulkan instance created successfully!\n";
-
-    // --- Create Vulkan Surface ---
-    VkSurfaceKHR surface = VK_NULL_HANDLE;
-    if (!SDL_Vulkan_CreateSurface(window, instance, nullptr, &surface)) {
-        std::cerr << "Surface creation failed: " << SDL_GetError() << '\n';
-        vkDestroyInstance(instance, nullptr);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-
-    std::cout << "SDL3 Vulkan surface created successfully!\n";
-
-    // --- Main Loop ---
-    bool running = true;
-    while (running) {
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
-                running = false;
-            }
-        }
-
-        // Add rendering code here later
-    }
-
-    // --- Cleanup ---
-    vkDestroySurfaceKHR(instance, surface, nullptr);
-    vkDestroyInstance(instance, nullptr);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-
-    return 0;
-}
-*/
