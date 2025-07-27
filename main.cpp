@@ -21,30 +21,83 @@ public:
 private:
     SDL_Window* window;
 
+	VkInstance instance;
+    
+
     void initWindow() {
         // --- Initialize SDL3 ---
         if (!SDL_Init(SDL_INIT_VIDEO)) {
             std::cerr << "SDL_Init failed: " << SDL_GetError() << '\n';
             std::cerr << "This might indicate SDL3.dll is missing or corrupted.\n";
             std::cerr << "Please ensure SDL3.dll is in the same directory as the executable.\n";
-            return;
+            throw std::runtime_error("Failed initialized SDL!");
         }
 
         std::cout << "SDL3 initialized successfully!\n";
 
-        // --- Create SDL3 Window ---
+        // --- Create SDL3 window ---
         window = SDL_CreateWindow("Vulkan Triangle with SDL3", WIDTH, HEIGHT,
             SDL_WINDOW_VULKAN); // Remove the flag SDL_WINDOW_RESIZABLE
 
         if (window == nullptr) {
             std::cerr << "Window creation failed: " << SDL_GetError() << '\n';
             SDL_Quit();
-            return;
+            throw std::runtime_error("failed SDL3 window!");
         }
+
+        std::cout << "SDL3 window created successfully!\n";
+
+        if (!SDL_Vulkan_LoadLibrary(nullptr)) {
+            std::cerr << "Failed to load Vulkan library: " << SDL_GetError() << '\n';
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            throw std::runtime_error("Failed Load SDL3 Vulkan library!");
+        }
+
+        std::cout << "SDL3 Vulkan library loaded successfully!\n";
     }
 
     void initVulkan() {
+        // --- Get required Vulkan extensions from SDL3 ---
+        Uint32 extensionCount = 0;
+        const char* const* SDL3_Extensions = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
+        if (!SDL3_Extensions || extensionCount == 0) {
+            std::cerr << "Failed to get Vulkan extension count: " << SDL_GetError() << '\n';
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            throw std::runtime_error("Failed to get Vulkan extensions!");
+		}
 
+        #ifndef NDEBUG
+        std::cout << "Number of Vulkan extensions: " << extensionCount << '\n';
+        for (Uint32 i = 0; i < extensionCount; ++i) {
+            std::cout << "Extension " << i << ": " << SDL3_Extensions[i] << '\n';
+		}
+        #endif // !NDEBUG
+        // --- Create Vulkan Instance ---
+        VkApplicationInfo appInfo = {
+            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+            .pApplicationName = "SDL3 Vulkan Demo",
+            .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+            .pEngineName = "No Engine",
+            .engineVersion = VK_MAKE_VERSION(1, 0, 0),
+            .apiVersion = VK_API_VERSION_1_4
+        };
+        VkInstanceCreateInfo createInfo = {
+            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .pApplicationInfo = &appInfo,
+            .enabledLayerCount = 0,
+            .ppEnabledLayerNames = nullptr,
+            .enabledExtensionCount = extensionCount,
+            .ppEnabledExtensionNames = SDL3_Extensions
+        };
+        if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
+            std::cerr << "Failed to create Vulkan instance\n";
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            throw std::runtime_error("Failed to create Vulkan instance!");
+        }
+        std::cout << "Vulkan instance created successfully!\n";
     }
 
     void mainLoop() {
