@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <vector>
 #include <optional>
+#include <set>
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -39,9 +40,10 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentFamily;
 
-    bool isComplete() {
-        return graphicsFamily.has_value();
+    bool isComplete() const {
+        return graphicsFamily.has_value() && presentFamily.has_value();
     }
 };
 
@@ -63,6 +65,7 @@ private:
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
     VkQueue graphicsQueue;
+    VkQueue presentQueue;
 
     void initWindow() {
         // --- Initialize SDL3 ---
@@ -234,18 +237,25 @@ private:
     void createLogicalDevice() {
         QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-        queueCreateInfo.queueCount = 1;
+        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+        std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+
         float queuePriority = 1.0f;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
+        for (uint32_t queueFamily : uniqueQueueFamilies) {
+            VkDeviceQueueCreateInfo queueCreateInfo{};
+            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfo.queueFamilyIndex = queueFamily;
+            queueCreateInfo.queueCount = 1;
+            queueCreateInfo.pQueuePriorities = &queuePriority;
+            queueCreateInfos.push_back(queueCreateInfo);
+        }
+
         VkPhysicalDeviceFeatures deviceFeatures{};
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		createInfo.pQueueCreateInfos = &queueCreateInfo; // 1. queue create info
-        createInfo.queueCreateInfoCount = 1; 
+		createInfo.pQueueCreateInfos = queueCreateInfos.data(); // 1. queue create info
+        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 
 		createInfo.pEnabledFeatures = &deviceFeatures; // 2. physical device features
 		createInfo.enabledExtensionCount = 0; // 3. enabled extensions count
@@ -263,6 +273,12 @@ private:
         }
 
         vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+		// If the graphics family is the same as the present family, we can use the same queue for both operations
+        if (indices.presentFamily.value() != indices.graphicsFamily.value()) {
+            vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+        } else {
+            presentQueue = graphicsQueue; // If graphics and present families are the same, use the same queue
+		}
     }
 
     std::vector<const char*> getRequiredExtensions() {
@@ -332,6 +348,12 @@ private:
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                 indices.graphicsFamily = i;
             }
+			// Check if the queue family supports presentation to the surface
+            VkBool32 presentSupport = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+            if (presentSupport) {
+                indices.presentFamily = i;
+            }
 
             if (indices.isComplete()) {
                 break;
@@ -339,8 +361,6 @@ private:
 
             i++;
         }
-
-
 
         return indices;
     }
