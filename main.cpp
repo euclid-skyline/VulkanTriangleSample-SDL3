@@ -147,30 +147,18 @@ private:
     void mainLoop() {
         bool running = true;
         
-        //const int targetFPS = 60;
-        //const int frameDelay = 1000 / targetFPS; // milliseconds per frame
-        //Uint64 frameStart = 0;
-        //int frameTime;
-
         while (running) {
             SDL_Event event{ 0 };
             while (SDL_PollEvent(&event)) {
                 if (event.type == SDL_EVENT_QUIT) {
                     running = false;
+					break; // Exit event loop early when quit is requested
                 }
-
-                
-
+                // Handle other events here if needed
             }
             if (running) {
                 drawFrame();
-                // Add a small delay to prevent excessive CPU usage and window unresponsiveness
-                SDL_Delay(1); // 1ms delay - adjust as needed for your target frame rate
-            }
-            /*frameTime = SDL_GetTicks() - frameStart;
-            if (frameDelay > frameTime) {
-                SDL_Delay(frameDelay - frameTime);
-            }*/
+            }   
         }
 
 		vkDeviceWaitIdle(device); // Wait for the device to finish all operations before cleanup
