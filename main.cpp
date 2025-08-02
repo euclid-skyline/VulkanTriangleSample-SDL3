@@ -96,7 +96,9 @@ private:
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
+    
     uint32_t currentFrame = 0;
+    bool framebufferResized = false;
 
     void initWindow() {
         // --- Initialize SDL3 ---
@@ -110,7 +112,8 @@ private:
         std::cout << "SDL3 initialized successfully!\n";
 
         // --- Create SDL3 window ---
-        window = SDL_CreateWindow("Vulkan Triangle with SDL3", WIDTH, HEIGHT, SDL_WINDOW_VULKAN); // Remove the flag SDL_WINDOW_RESIZABLE
+        window = SDL_CreateWindow("Vulkan Triangle with SDL3", WIDTH, HEIGHT, 
+            SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE); 
 
         if (window == nullptr) {
             std::cerr << "Window creation failed: " << SDL_GetError() << '\n';
@@ -148,7 +151,8 @@ private:
 
     void mainLoop() {
         bool running = true;
-        
+        bool minimized = false; // Add this flag
+
         while (running) {
             SDL_Event event{ 0 };
             while (SDL_PollEvent(&event)) {
@@ -156,33 +160,77 @@ private:
                     running = false;
 					break; // Exit event loop early when quit is requested
                 }
+                // Handle window resize event
+                if (event.type == SDL_EVENT_WINDOW_RESIZED) {
+                    framebufferResized = true;
+                }
+                // Handle window minimization
+                if (event.type == SDL_EVENT_WINDOW_MINIMIZED) {
+                    minimized = true;
+                    std::cout << "Window minimized\n";
+                }
+                // Handle window restoration
+                if (event.type == SDL_EVENT_WINDOW_RESTORED) {
+                    minimized = false;
+                    framebufferResized = true; // Force swap chain recreation
+                    std::cout << "Window restored\n";
+                }
+				// Handle window maximization
+                if (event.type == SDL_EVENT_WINDOW_MAXIMIZED) {
+                    framebufferResized = true;
+                    std::cout << "Window maximized\n";
+                }
+				// Handle window entering fullscreen
+                if (event.type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN) {
+                    framebufferResized = true;
+                    std::cout << "Window entered fullscreen\n";
+                }
+				// Handle window leaving fullscreen
+                if (event.type == SDL_EVENT_WINDOW_LEAVE_FULLSCREEN) {
+                    framebufferResized = true;
+                    std::cout << "Window left fullscreen\n";
+                }
+
                 // Handle other events here if needed
             }
-            if (running) {
+            if (running && !minimized) {
                 drawFrame();
-            }   
+            } 
+            else if (running && minimized) {
+                // When minimized, sleep to reduce CPU usage
+                SDL_Delay(100);
+            }
         }
 
 		vkDeviceWaitIdle(device); // Wait for the device to finish all operations before cleanup
     }
 
+    void cleanupSwapChain() {
+        for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
+            vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
+        }
+
+        for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+            vkDestroyImageView(device, swapChainImageViews[i], nullptr);
+        }
+
+        vkDestroySwapchainKHR(device, swapChain, nullptr);
+    }
+
     void cleanup() {
+		cleanupSwapChain();
+
+        vkDestroyPipeline(device, graphicsPipeline, nullptr);
+        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+        vkDestroyRenderPass(device, renderPass, nullptr);
+
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(device, inFlightFences[i], nullptr);
         }
         vkDestroyCommandPool(device, commandPool, nullptr);
-        for (auto framebuffer : swapChainFramebuffers) {
-            vkDestroyFramebuffer(device, framebuffer, nullptr);
-        }
-        vkDestroyPipeline(device, graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-        vkDestroyRenderPass(device, renderPass, nullptr);
-        for (auto imageView : swapChainImageViews) {
-            vkDestroyImageView(device, imageView, nullptr);
-        }
-        vkDestroySwapchainKHR(device, swapChain, nullptr);
+        
         vkDestroyDevice(device, nullptr);
         if (enableValidationLayers) {
             DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
@@ -403,6 +451,25 @@ private:
 		// Store the swap chain image format and extent for later use
         swapChainImageFormat = surfaceFormat.format;
         swapChainExtent = extent;
+    }
+
+    void recreateSwapChain() {
+        int width = 0, height = 0;
+        SDL_GetWindowSize(window, &width, &height);
+        // Handle minimized window (zero size) - don't recreate swap chain
+        if (width == 0 || height == 0) {
+            // Window is minimized, don't recreate swap chain
+            // The swap chain will be recreated when window is restored
+            return;
+		}
+
+        vkDeviceWaitIdle(device);
+
+        cleanupSwapChain();
+
+        createSwapChain();
+        createImageViews();
+        createFramebuffers();
     }
 
     void createImageViews() {
@@ -737,24 +804,45 @@ private:
     }
 
     void drawFrame() {
+        // Check if window is minimized before drawing
+        int width, height;
+        SDL_GetWindowSize(window, &width, &height);
+        if (width == 0 || height == 0) {
+            // Window is minimized, skip rendering
+            return;
+        }
+
+		// Wait for the fence to be signaled before acquiring the next image
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-        vkResetFences(device, 1, &inFlightFences[currentFrame]);
-
+        
+		// Acquire the next image from the swap chain
         uint32_t imageIndex;
-        vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, 
+            imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+		// Handle out of date swap chain
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+            recreateSwapChain();
+            return;
+        }
+        else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+            throw std::runtime_error("failed to acquire swap chain image!");
+        }
 
+        // Only reset the fence if we are submitting work
+        vkResetFences(device, 1, &inFlightFences[currentFrame]);
+		// Reset the command buffer and record it for the current frame
         vkResetCommandBuffer(commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
         recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
-
+		// Submit the command buffer to the graphics queue
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
+		
         VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
-
+        
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
 
@@ -778,7 +866,15 @@ private:
 
         presentInfo.pImageIndices = &imageIndex;
 
-        vkQueuePresentKHR(presentQueue, &presentInfo);
+        result = vkQueuePresentKHR(presentQueue, &presentInfo);
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+			framebufferResized = false; // Reset the flag
+            recreateSwapChain();
+        }
+        else if (result != VK_SUCCESS) {
+            throw std::runtime_error("failed to present swap chain image!");
+        }
 
 		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
