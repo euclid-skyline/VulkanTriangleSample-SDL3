@@ -501,7 +501,9 @@ private:
         // 2c. Combine the shader stage create info structures into an array
         VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 		// Start of Fixed functions stages of the graphics pipeline
-        // 3. Create the Vertex Input
+        // 3. Create the Vertex Input. 
+        // There is no vertex buffer.The triangle vertices are hardcoded 
+        // directly in the vertex shader instead.
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         vertexInputInfo.vertexBindingDescriptionCount = 0;
@@ -581,9 +583,7 @@ private:
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
         }		
-        
         // Create Graphics Pipeline
-
         VkGraphicsPipelineCreateInfo pipelineInfo{};
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
         pipelineInfo.stageCount = 2;
