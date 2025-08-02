@@ -766,35 +766,48 @@ private:
     }
 
     void createVertexBuffer() {
-        VkBufferCreateInfo bufferInfo{};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = sizeof(vertices[0]) * vertices.size();
-		bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT; // Specify that this buffer will be used as a vertex buffer
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // This buffer will be used by a graphics queue family only
-		bufferInfo.flags = 0; // No special flags needed for a vertex buffer
+        VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+        createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+			vertexBuffer, vertexBufferMemory);
+        // Ensure the vertex buffer is created successfully
+        if (vertexBuffer == VK_NULL_HANDLE || vertexBufferMemory == VK_NULL_HANDLE) {
+            throw std::runtime_error("failed to create vertex buffer!");
+		}
+		// Copy vertex data to the vertex buffer
+		void* data; // Map the vertex buffer memory to access it
+		vkMapMemory(device, vertexBufferMemory, 0, bufferSize, 0, &data); // Map the memory to write data
+		memcpy(data, vertices.data(), (size_t)bufferSize); // Copy the vertex data to the mapped memory
+		vkUnmapMemory(device, vertexBufferMemory); // Unmap the memory after writing data
+    }
 
-        if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, 
+        VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
+        VkBufferCreateInfo bufferInfo{};
+
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = size;
+        bufferInfo.usage = usage; // Specify that this buffer will be used as a vertex buffer
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // This buffer will be used by a graphics queue family only
+        bufferInfo.flags = 0; // No special flags needed for a vertex buffer
+
+        if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to create vertex buffer!");
         }
-		// Allocate memory for the vertex buffer
+        // Allocate memory for the vertex buffer
         VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
-		// Create memory allocation info for the vertex buffer
+        vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
+        // Create memory allocation buffer
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties); // Find a suitable memory type for the buffer
 
-        if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) {
+        if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate vertex buffer memory!");
         }
-		// Bind the vertex buffer memory to the vertex buffer
-        vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
-		// Copy vertex data to the vertex buffer
-		void* data; // Map the vertex buffer memory to access it
-		vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data); // Map the memory to write data
-		memcpy(data, vertices.data(), (size_t)bufferInfo.size); // Copy the vertex data to the mapped memory
-		vkUnmapMemory(device, vertexBufferMemory); // Unmap the memory after writing data
+		// Bind the allocated memory to the vertex buffer
+        vkBindBufferMemory(device, buffer, bufferMemory, 0);
     }
 
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
