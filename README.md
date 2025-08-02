@@ -1,1 +1,1 @@
-# VulkanTiangleSample-SDL3
+# VulkanTriangleSample-SDL3
