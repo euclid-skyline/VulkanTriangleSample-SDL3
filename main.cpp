@@ -432,6 +432,7 @@ private:
 
         VkPhysicalDeviceFeatures deviceFeatures{};
 		deviceFeatures.fillModeNonSolid = VK_TRUE; // Enable non-solid fill mode for rendering
+		deviceFeatures.wideLines = VK_TRUE; // Enable wide lines for rendering
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
