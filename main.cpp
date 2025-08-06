@@ -105,14 +105,32 @@ struct UniformBufferObject {
 };
 
 const std::vector<Vertex> vertices = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+    {{0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+    {{0.25f, 0.433f}, {0.0f, 0.0f, 1.0f}},
+    {{-0.25f, 0.433f}, {1.0f, 1.0f, 1.0f}},
+    {{-0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+    {{-0.25f, -0.433f}, {0.0f, 1.0f, 0.0f}},
+    {{0.25f, -0.433f}, {1.0f, 0.0f, 0.0f}}
 };
 
+//const std::vector<Vertex> vertices = {
+//    {{0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+//    {{0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+//    {{0.25f, 0.433f}, {1.0f, 1.0f, 1.0f}},
+//    {{-0.25f, 0.433f}, {1.0f, 1.0f, 1.0f}},
+//    {{-0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+//    {{-0.25f, -0.433f}, {1.0f, 1.0f, 1.0f}},
+//    {{0.25f, -0.433f}, {1.0f, 1.0f, 1.0f}}
+//};
+
 const std::vector<uint16_t> indices = {
-    0, 1, 2, 2, 3, 0
+    0, 1, 2,
+    0, 2, 3,
+    0, 3, 4,
+    0, 4, 5,
+    0, 5, 6,
+    0, 6, 1     // Close the triangle fan
 };
 
 class HelloTriangleApplication {
@@ -691,7 +709,7 @@ private:
         // 4. Create Input Assembly 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
         inputAssembly.primitiveRestartEnable = VK_FALSE;
 		// 5. Create Viewport and Scissor dynamically
         VkPipelineViewportStateCreateInfo viewportState{};
