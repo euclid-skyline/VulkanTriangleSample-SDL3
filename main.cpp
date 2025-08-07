@@ -13,6 +13,7 @@
 #include <fstream> // Necessary for file reading
 #include <array>
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -1149,16 +1150,31 @@ private:
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         //ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         // Look into the z-axis (top view). You may need adjust the rasterization state culling mode and front face.
-        ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f),  // Camera at +Z
-            glm::vec3(0.0f, 0.0f, 0.0f),  // Looking at origin
-            glm::vec3(0.0f, 1.0f, 0.0f)); // Y is up
+        //ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f),  // Camera at +Z
+        //    glm::vec3(0.0f, 0.0f, 0.0f),  // Looking at origin
+        //    glm::vec3(0.0f, 1.0f, 0.0f)); // Y is up
 		// Look into the z-axis (bottom view). You may need adjust the rasterization state culling mode and front face.
         //ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, -2.0f), // Camera at -Z
         //    glm::vec3(0.0f, 0.0f, 0.0f),  // Looking at origin
         //    glm::vec3(0.0f, 1.0f, 0.0f)); // Y is up
+        
+        ubo.view = glm::lookAt(
+            glm::vec3(0.0f, 0.0f, 1.0f),  // eye
+            glm::vec3(0.0f, 0.0f, 0.0f),  // center
+            glm::vec3(0.0f, 1.0f, 0.0f)   // up
+        );
 
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-		ubo.proj[1][1] *= -1; // Invert the Y axis for Vulkan
+        //ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+        float aspect = swapChainExtent.width / (float)swapChainExtent.height;
+        float orthoHeight = 1.0f; // You can tweak this for zoom level
+        float orthoWidth = orthoHeight * aspect;
+
+        ubo.proj = glm::ortho(
+            -orthoWidth, orthoWidth,   // left, right
+            -orthoHeight, orthoHeight, // bottom, top
+            -1.0f, 1.0f                // near, far
+        );        
+        ubo.proj[1][1] *= -1; // Invert the Y axis for Vulkan
 
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
