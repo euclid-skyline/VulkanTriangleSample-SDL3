@@ -1,4 +1,4 @@
-#include <SDL3/SDL.h>
+﻿#include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
 #include <iostream>
@@ -17,6 +17,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <chrono>
+#include <numbers> // For std::numbers:: constants 
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -104,14 +105,41 @@ struct UniformBufferObject {
     glm::mat4 proj;
 };
 
+/*
+* For an equilateral triangle centered at origin (The Centriod (Geometric Center) at Origin):
+•	Height = √3/2 × side_length
+•	Circumradius (center to vertex) = side_length / √3
+•	Distance from center to base = height / 3
+*
+* For a side length of 1:
+* Height = √3/2 ≈ 0.866025
+* Circumradius = 1/√3 ≈ 0.577350
+* Distance from center to base = (√3/2) / 3 ≈ 0.288675
+* Thus, the vertices of the triangle can be defined as follows:
+* - Top vertex at (0.0, 0.577350) with red color
+* - Bottom left vertex at (-0.5, -0.288675) with green color
+* - Bottom right vertex at (0.5, -0.288675) with blue color
+* This configuration ensures the triangle is equilateral, centered at the origin, and has a side length of 1.
+* The triangle vertices are defined in a counter-clockwise order, which is important for correct face culling and rendering in Vulkan.
+* The triangle is defined in a 2D space, with the z-coordinate implicitly set to 0.0f.
+* The triangle is oriented such that the top vertex points upwards, and the base is horizontal.
+* This configuration is suitable for rendering a simple triangle in Vulkan using SDL3.
+*/
+// Unit Size Triangle (0.5 radius)
 const std::vector<Vertex> vertices = {
-    {{-0.5f, -0.5f * glm::sin(glm::radians(60.0f))}, {1.0f, 0.0f, 0.0f}},
-    {{0.5f, -0.5f * glm::sin(glm::radians(60.0f))}, {0.0f, 1.0f, 0.0f}},
-    {{0.0f, 0.5f * glm::sin(glm::radians(60.0f))}, {0.0f, 0.0f, 1.0f}}
+    {{0.0f, std::numbers::inv_sqrt3_v<float>}, {1.0f, 0.0f, 0.0f}},     // Top vertex (red)
+    {{-0.5f, -std::numbers::sqrt3_v<float> / 6.0f}, {0.0f, 1.0f, 0.0f}},   // Bottom left (green)
+    {{0.5f, -std::numbers::sqrt3_v<float> / 6.0f}, {0.0f, 0.0f, 1.0f}}     // Bottom right (blue)
 };
+// Larger Triangle (1.0 radius)
+//const std::vector<Vertex> vertices = {
+//    {{0.0f, 1.154701f}, {1.0f, 0.0f, 0.0f}},     // Top vertex (red)
+//    {{-1.0f, -0.57735f}, {0.0f, 1.0f, 0.0f}},    // Bottom left (green)
+//    {{1.0f, -0.57735f}, {0.0f, 0.0f, 1.0f}}      // Bottom right (blue)
+//};
 
 const std::vector<uint16_t> indices = {
-    0, 1, 2, 0
+    0, 1, 2
 };
 
 class HelloTriangleApplication {
@@ -1128,7 +1156,12 @@ private:
         UniformBufferObject ubo{};
 		float speed = 90.0f; // Set speed to 0.0f for no rotation
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(speed), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        // TOP-DOWN VIEW: Camera directly above looking down
+        ubo.view = glm::lookAt(
+            glm::vec3(0.0f, 0.0f, 2.0f),   // Camera above the scene
+            glm::vec3(0.0f, 0.0f, 0.0f),   // Look at origin
+            glm::vec3(0.0f, 1.0f, 0.0f)    // Y-axis as up vector
+        );
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
 		ubo.proj[1][1] *= -1; // Invert the Y axis for Vulkan
 
