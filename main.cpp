@@ -115,9 +115,9 @@ struct UniformBufferObject {
 };
 
 const std::vector<Vertex> vertices = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, -1.0f}},
+    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {-1.0f, -1.0f}},
+    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {-1.0f, 1.0f}},
     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}}
 };
 
@@ -901,7 +901,7 @@ private:
     void createTextureImage() {
         int texWidth, texHeight, texChannels;
 		// Load the texture image using stb_image
-        stbi_uc* pixels = stbi_load("textures/texture6.jpg", 
+        stbi_uc* pixels = stbi_load("textures/texture.jpg", 
             &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
         VkDeviceSize imageSize = texWidth * texHeight * 4;
 
